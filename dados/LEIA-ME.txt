@@ -1,0 +1,29 @@
+Lista 03 --- dados sorteados para o login claudyr01
+
+Tema: Faturamento das lojas de uma rede de varejo
+Unidade de observação: loja
+
+Arquivos
+
+  faturamento_2023.csv, faturamento_2024.csv, faturamento_2025.csv
+      Uma linha por unidade e uma coluna por mês do ano. A coluna
+      codigo identifica a unidade, e as colunas jan a dez trazem o
+      valor medido: faturamento no mês, em milhares de reais.
+      Mês sem registro aparece como "-".
+
+  cadastro.csv
+      Uma linha por unidade, com as colunas:
+        codigo        identificador da unidade, o mesmo das medições
+        nome          nome da unidade
+        formato       categoria: Shopping, Rua ou Galeria
+        area_m2       porte: área de vendas, em m²
+
+Conferência
+
+  unidades no cadastro:   11
+  unidades com medições:  10
+
+  ano    meses sem registro    soma dos valores registrados
+  2023                    5                        125504,9
+  2024                    2                        131570,9
+  2025                    3                        132252,5

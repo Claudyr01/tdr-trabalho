@@ -30,7 +30,7 @@ jobs:
       - name: Instalar dependencias do sistema Linux
         run: |
           sudo apt-get update
-          sudo apt-get install -y libcurl4-openssl-dev libssl-dev libxml2-dev
+          sudo apt-get install -y libcurl4-openssl-dev libssl-dev libxml2-dev libfontconfig1-dev libharfbuzz-dev libfribidi-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev
 
       - name: Configurar e restaurar ambiente renv
         uses: r-lib/actions/setup-renv@v2
@@ -39,7 +39,7 @@ jobs:
         run: |
           Rscript -e "targets::tar_make()"
 
-      - name: Publicar artefacto do relatorio HTML
+      - name: Publicar artefato do relatorio HTML
         uses: actions/upload-artifact@v4
         with:
           name: relatorio-html
