@@ -4,7 +4,7 @@ library(tarchetypes)
 tar_source()
 
 tar_option_set(
-  packages = c("readr", "dplyr", "tidyr", "purrr", "ggplot2", "quarto")
+  packages = c("readr", "dplyr", "tidyr", "purrr", "ggplot2", "quarto", "knitr")
 )
 
 list(
@@ -19,5 +19,8 @@ list(
   tar_target(resumo_unidade, gerar_resumo_unidade(tabela_arrumada)),
   tar_target(resumo_categoria, gerar_resumo_categoria(tabela_arrumada)),
   tar_target(resumo_categoria_ano, gerar_resumo_categoria_ano(tabela_arrumada)),
+  
+  tar_target(modelo_log, ajustar_modelo_log(tabela_arrumada)),
+  
   tar_quarto(relatorio, "relatorio.qmd")
 )

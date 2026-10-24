@@ -1,0 +1,72 @@
+---
+title: "Relatório da Análise do Trabalho Intermediário"
+author: "Claudyr"
+lang: pt-BR
+format:
+  html:
+    embed-resources: true
+    code-fold: true
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+library(targets)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+
+# Carregamento dos alvos calculados no pipeline (sem ler ficheiros brutos)
+tar_load(c(tabela_arrumada, conferencia, resumo_unidade, resumo_categoria, resumo_categoria_ano, modelo_log))
+
+# Função de formatação brasileira para o texto em linha
+fmt <- function(x, dec = 2) {
+  format(round(x, dec), big.mark = ".", decimal.mark = ",", nsmall = dec)
+}
+
+# Cálculos dinâmicos para o texto em linha
+total_unidades_cad <- n_distinct(tabela_arrumada$id_chave)
+
+# Identificação da unidade do cadastro sem medição
+unidade_sem_med <- tabela_arrumada |> 
+  group_by(id_chave) |> 
+  summarise(total_obs = sum(!is.na(medida_relativa)), .groups = "drop") |> 
+  filter(total_obs == 0) |> 
+  pull(id_chave)
+
+unidades_com_medizao <- total_unidades_cad - length(unidade_sem_med)
+
+# Dados da sazonalidade
+sazonalidade <- tabela_arrumada |> 
+  group_by(mes) |> 
+  summarise(media_mensal = mean(medida_relativa, na.rm = TRUE), .groups = "drop")
+
+mes_maior <- sazonalidade |> filter(media_mensal == max(media_mensal)) |> pull(mes) |> as.character()
+val_maior <- sazonalidade |> filter(media_mensal == max(media_mensal)) |> pull(media_mensal)
+
+mes_menor <- sazonalidade |> filter(media_mensal == min(media_mensal)) |> pull(mes) |> as.character()
+val_menor <- sazonalidade |> filter(media_mensal == min(media_mensal)) |> pull(media_mensal)
+
+# Variação entre 2023 e 2025
+media_2023 <- tabela_arrumada |> filter(ano == 2023) |> summarise(m = mean(medida_relativa, na.rm = TRUE)) |> pull(m)
+media_2025 <- tabela_arrumada |> filter(ano == 2025) |> summarise(m = mean(medida_relativa, na.rm = TRUE)) |> pull(m)
+var_pct_23_25 <- ((media_2025 - media_2023) / media_2023) * 100
+
+# Diferenças por Categoria
+cat_resumo <- tabela_arrumada |> 
+  group_by(categoria) |> 
+  summarise(m = mean(medida_relativa, na.rm = TRUE), .groups = "drop")
+
+cat_maior <- cat_resumo |> filter(m == max(m)) |> pull(categoria) |> as.character()
+val_cat_maior <- cat_resumo |> filter(m == max(m)) |> pull(m)
+
+cat_menor <- cat_resumo |> filter(m == min(m)) |> pull(categoria) |> as.character()
+val_cat_menor <- cat_resumo |> filter(m == min(m)) |> pull(m)
+
+# Modelo Log-Linear (Efeito do ano)
+coef_ano <- coef(modelo_log)["ano"]
+efeito_ano_pct <- (exp(coef_ano) - 1) * 100
+ci_ano <- confint(modelo_log)["ano", ]
+ci_ano_pct <- (exp(ci_ano) - 1) * 100
