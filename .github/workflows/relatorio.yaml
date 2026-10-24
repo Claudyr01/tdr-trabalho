@@ -12,9 +12,10 @@ on:
 
 jobs:
   render:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
+      RENV_CONFIG_REPOS_OVERRIDE: https://packagemanager.posit.co/cran/__linux__/jammy/latest
     steps:
       - name: Checkout do repositorio
         uses: actions/checkout@v4
@@ -22,7 +23,8 @@ jobs:
       - name: Configurar R
         uses: r-lib/actions/setup-r@v2
         with:
-          r-version: 'release'
+          r-version: '4.3.3'
+          use-public-rspm: true
 
       - name: Configurar Quarto CLI
         uses: quarto-dev/quarto-actions/setup@v2
@@ -32,14 +34,16 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcurl4-openssl-dev libssl-dev libxml2-dev libfontconfig1-dev libharfbuzz-dev libfribidi-dev libfreetype6-dev libpng-dev libtiff5-dev libjpeg-dev
 
-      - name: Configurar e restaurar ambiente renv
-        uses: r-lib/actions/setup-renv@v2
+      - name: Restaurar ambiente renv
+        run: |
+          Rscript -e "if (!requireNamespace('renv', quietly = TRUE)) install.packages('renv')"
+          Rscript -e "renv::restore()"
 
       - name: Executar pipeline e renderizar relatorio
         run: |
           Rscript -e "targets::tar_make()"
 
-      - name: Publicar artefato do relatorio HTML
+      - name: Publicar artefacto do relatorio HTML
         uses: actions/upload-artifact@v4
         with:
           name: relatorio-html
