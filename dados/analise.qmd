@@ -1,0 +1,326 @@
+---
+title: "Análise de Dados Veiculares"
+author: "Claudyr"
+lang: pt-BR
+format:
+  html:
+    embed-resources: true
+execute:
+  echo: true
+encoding: "UTF-8"
+---
+
+## Exercício 1 — O documento e a leitura
+
+```{r}
+#| label: setup-e-leitura
+#| message: false
+#| warning: false
+
+# 1. Carregar os pacotes essenciais
+library(readr)
+library(dplyr)
+library(stringi)
+
+# 2. Forçar a sessão do R a operar no locale UTF-8 do Português no Linux
+Sys.setlocale("LC_ALL", "pt_BR.UTF-8")
+
+# 3. Função universal para converter qualquer coluna de texto para UTF-8 limpo
+limpar_acentos_global <- function(df) {
+  df %>% 
+    mutate(
+      across(
+        where(is.character), 
+        ~ stringi::stri_enc_toutf8(.x, validate = TRUE)
+      )
+    )
+}
+
+# 4. Leitura dos dados com conversão automática de encoding para todo o dataframe
+cadastro <- read.csv2("dados/cadastro.csv", encoding = "latin1") %>% 
+  limpar_acentos_global()
+
+faturamento_2023 <- read.csv2("dados/faturamento_2023.csv", encoding = "latin1") %>% 
+  limpar_acentos_global()
+
+faturamento_2024 <- read.csv2("dados/faturamento_2024.csv", encoding = "latin1") %>% 
+  limpar_acentos_global()
+
+faturamento_2025 <- read.csv2("dados/faturamento_2025.csv", encoding = "latin1") %>% 
+  limpar_acentos_global()
+```
+
+### 2. Leitura do Primeiro Arquivo Anual
+
+```{r}
+#| label: leitura-primeiro-ano
+# Seleciona o primeiro arquivos csv da pasta dados/ excluindo o cadastro
+todos_csvs <- list.files("dados", pattern = "\\.csv$", full.names = TRUE)
+arquivo_primeiro_ano <- todos_csvs[!grepl("cadastro.csv$", todos_csvs)][1]
+
+primeiro_ano <- read_delim(
+  file = arquivo_primeiro_ano,
+  delim = ";",
+  na = "-",
+  locale = locale(decimal_mark = ","),
+  col_types = cols(
+    codigo = col_character(),
+    jan = col_double(),
+    fev = col_double(),
+    mar = col_double(),
+    abr = col_double(),
+    mai = col_double(),
+    jun = col_double(),
+    jul = col_double(),
+    ago = col_double(),
+    set = col_double(),
+    out = col_double(),
+    nov = col_double(),
+    dez = col_double()
+  )
+)
+
+glimpse(primeiro_ano)
+```
+## Exercício 2 — Arrumar a tabela
+
+```{r}
+#| label: setup-exercicio-2
+#| message: false
+library(tidyr)
+library(forcats)
+
+#| label: arrumar-tabela
+# 1. Converte a tabela para o formato longo
+primeiro_ano_longo <- primeiro_ano %>%
+  pivot_longer(
+    cols = jan:dez,
+    names_to = "mes",
+    values_to = "medicao" # Ajuste o nome conforme o tema da sua lista (ex: veiculos, leite, etc.)
+  ) %>%
+  # 2. Transforma o mês em fator respeitando a ordem cronológica do calendário
+  mutate(
+    mes = fct_inorder(mes)
+  )
+
+# Exibe a estrutura da tabela arrumada
+glimpse(primeiro_ano_longo)
+
+#| label: contagem-linhas-na
+# Total de linhas na tabela longa
+total_linhas <- nrow(primeiro_ano_longo)
+
+# Total de valores ausentes na coluna de medição
+total_ausentes <- sum(is.na(primeiro_ano_longo$medicao))
+
+cat("Total de linhas na tabela longa:", total_linhas, "\n")
+cat("Total de valores ausentes (NA):", total_ausentes, "\n")
+
+```
+
+## Exercício 3 — Juntar ao cadastro
+
+```{r}
+#| label: juntar-cadastro
+# 1. Junção da tabela longa com o cadastro mantendo todas as linhas da tabela longa
+primeiro_ano_juntado <- primeiro_ano_longo %>%
+  left_join(cadastro, by = "codigo", relationship = "many-to-one")
+
+# Conferência do número de linhas
+cat("Linhas antes da junção:", nrow(primeiro_ano_longo), "\n")
+cat("Linhas após a junção:", nrow(primeiro_ano_juntado), "\n")
+
+# Identifica automaticamente a coluna numérica do cadastro para o cálculo do porte
+coluna_porte <- cadastro %>%
+  select(where(is.numeric)) %>%
+  names() %>%
+  .[1]
+
+# 2. Criação da medida relativa dividindo pela coluna numérica do cadastro
+primeiro_ano_juntado <- primeiro_ano_juntado %>%
+  mutate(
+    medida_relativa = medicao / .data[[coluna_porte]]
+  )
+
+glimpse(primeiro_ano_juntado)
+
+#| label: unidade-sem-medicao
+# 3. Junção filtrante para encontrar a unidade do cadastro que não tem medição
+unidade_sem_medicao <- cadastro %>%
+  anti_join(primeiro_ano_longo, by = "codigo")
+
+unidade_sem_medicao
+
+```
+## Exercício 4 — Resumir por grupo
+
+Para o tratamento dos meses sem registro (`NA`), optou-se por desconsiderar os valores ausentes durante o cálculo dos resumos (`na.rm = TRUE`). Essa decisão **afeta a coluna de média mensal** (que passa a considerar apenas os meses com medições efetivas), mas **não afeta a coluna de total do ano** (pois meses sem registro não somam valores ao acumulado anual).
+
+### 1. Resumo por Unidade
+
+```{r}
+#| label: resumo-por-unidade
+coluna_categoria <- setdiff(names(cadastro), c("codigo", "nome", coluna_porte))[1]
+
+resumo_unidade <- primeiro_ano_juntado %>%
+  group_by(codigo, nome, .data[[coluna_categoria]]) %>%
+  summarise(
+    meses_com_registro = sum(!is.na(medida_relativa)),
+    total_ano = sum(medida_relativa, na.rm = TRUE),
+    media_mensal = mean(medida_relativa, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(media_mensal))
+
+resumo_unidade
+
+#| label: resumo-por-categoria
+resumo_categoria <- primeiro_ano_juntado %>%
+  group_by(.data[[coluna_categoria]]) %>%
+  summarise(
+    n_unidades = n_distinct(codigo),
+    total_ano = sum(medida_relativa, na.rm = TRUE),
+    media_mensal = mean(medida_relativa, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+resumo_categoria
+
+#| label: total-geral-inline
+#| include: false
+total_geral_ano <- sum(primeiro_ano_juntado$medicao, na.rm = TRUE)
+total_formatado <- format(total_geral_ano, big.mark = ".", decimal.mark = ",")
+```
+## Exercício 5 — Todos os anos de uma vez
+
+```{r}
+#| label: setup-exercicio-5
+#| message: false
+
+library(tidyverse)
+
+# ---- PARÂMETROS (ajuste se o terminal do Exercício 1 mostrou outra coisa) ----
+
+# Arquivos anuais (faturamento_2023.csv, faturamento_2024.csv, faturamento_2025.csv)
+sep_campos    <- ";"                 # separador de campos
+sep_decimal   <- ","                 # separador decimal
+codificacao   <- "UTF-8"             # ou "Latin1"
+marca_ausente <- c("", "NA", "-")    # como o ausente aparece nos arquivos
+
+# Cadastro (cadastro.csv): pode ter respostas diferentes dos anuais
+sep_campos_cadastro  <- ";"
+sep_decimal_cadastro <- ","
+codificacao_cadastro <- "UTF-8"
+
+# Tema
+medida       <- "faturamento"       # nome da coluna de valores na tabela longa
+coluna_porte     <- "area_m2"       # coluna do cadastro usada como porte (área em m²)
+coluna_categoria <- "formato"       # coluna do cadastro usada como categoria
+
+meses <- c("jan", "fev", "mar", "abr", "mai", "jun",
+           "jul", "ago", "set", "out", "nov", "dez")
+
+# ---- ARQUIVOS ----
+todos_csv   <- list.files("dados", pattern = "\\.csv$", full.names = TRUE)
+eh_cadastro <- str_detect(basename(todos_csv), regex("cadastro", ignore_case = TRUE))
+
+arquivo_cadastro <- todos_csv[eh_cadastro]
+arquivos_anuais  <- todos_csv[!eh_cadastro]
+
+stopifnot(length(arquivo_cadastro) == 1, length(arquivos_anuais) == 3)
+
+# ---- CADASTRO (lido aqui, para o exercício não depender de chunks anteriores) ----
+cadastro_preparado <- read_delim(
+  arquivo_cadastro,
+  delim     = sep_campos_cadastro,
+  locale    = locale(decimal_mark = sep_decimal_cadastro,
+                     encoding     = codificacao_cadastro),
+  col_types = cols(codigo = col_character(), .default = col_guess())
+)
+
+# Se faltar alguma coluna, a mensagem mostra as que existem
+faltando <- setdiff(c("codigo", coluna_categoria, coluna_porte), names(cadastro_preparado))
+if (length(faltando) > 0) {
+  stop("Faltam no cadastro: ", paste(faltando, collapse = ", "),
+       ". Colunas disponíveis: ", paste(names(cadastro_preparado), collapse = ", "))
+}
+
+# A categoria passa a se chamar `categoria` nas etapas seguintes
+cadastro_preparado <- cadastro_preparado |>
+  rename(categoria = all_of(coluna_categoria))
+
+# ---- ANUAIS: leitura com map() e empilhamento ----
+# Tipos declarados dentro do map(), como no Exercício 1
+tipos_anuais <- cols(codigo = col_character(), .default = col_double())
+
+tabela_empilhada <- arquivos_anuais |>
+  set_names() |>
+  map(\(arq) read_delim(
+    arq,
+    delim     = sep_campos,
+    locale    = locale(decimal_mark = sep_decimal, encoding = codificacao),
+    na        = marca_ausente,
+    col_types = tipos_anuais
+  )) |>
+  list_rbind(names_to = "arquivo") |>
+  # o ano está no nome do arquivo; basename() evita pegar números do caminho
+  mutate(ano = parse_number(basename(arquivo)))
+
+stopifnot("codigo" %in% names(tabela_empilhada),
+          all(meses %in% names(tabela_empilhada)))
+
+# ---- CADEIA DOS EXERCÍCIOS 2 E 3, COM `ano` PRESERVADO ----
+tabela_longa_anos <- tabela_empilhada |>
+  pivot_longer(cols = all_of(meses),
+               names_to = "mes",
+               values_to = medida) |>
+  mutate(mes = factor(mes, levels = meses))
+
+tabela_juntada_anos <- tabela_longa_anos |>
+  left_join(cadastro_preparado, by = "codigo", relationship = "many-to-one") |>
+  mutate(medida_relativa = .data[[medida]] / .data[[coluna_porte]])
+
+# A junção não pode mudar o número de linhas
+stopifnot(nrow(tabela_juntada_anos) == nrow(tabela_longa_anos))
+```
+
+```{r}
+#| label: tabela-apresentacao-5
+
+# Mesma regra do Exercício 4: mês sem registro fica fora da soma (na.rm = TRUE)
+totais_categoria_ano <- tabela_juntada_anos |>
+  summarise(total = sum(.data[[medida]], na.rm = TRUE),
+            .by = c(categoria, ano))
+
+# Caminho inverso do Exercício 2: do formato longo para o largo
+tabela_apresentacao <- totais_categoria_ano |>
+  arrange(ano) |>
+  pivot_wider(names_from = ano, values_from = total) |>
+  arrange(categoria)
+
+tabela_apresentacao
+```
+
+```{r}
+#| label: conferencias-5
+
+# Para comparar com o LEIA-ME.txt
+tibble(
+  linhas_tabela_empilhada = nrow(tabela_empilhada),
+  linhas_tabela_longa     = nrow(tabela_longa_anos),
+  ausentes_total          = sum(is.na(tabela_longa_anos[[medida]]))
+)
+
+# Ausentes por ano
+tabela_longa_anos |>
+  summarise(ausentes = sum(is.na(.data[[medida]])), .by = ano) |>
+  arrange(ano)
+
+# Soma de cada ano (colunas da tabela de apresentação)
+tabela_apresentacao |>
+  summarise(across(-categoria, sum))
+```
+
+### O que a cadeia dos Exercícios 2 e 3 não aguentava sem alteração
+
+Com três arquivos empilhados, o mesmo código de um ano só passa a misturar anos: cada unidade aparece três vezes por mês, e qualquer agrupamento só por `codigo` (ou por `codigo` e `mes`) soma anos diferentes como se fossem um só. A mudança foi manter a coluna `ano` na tabela longa e incluí-la em todo agrupamento (aqui, `.by = c(categoria, ano)`). A junção com o cadastro continua por `codigo` com `relationship = "many-to-one"`, porque o cadastro tem uma linha por unidade, e a conferência de `nrow()` garante que ela não duplicou linhas. Além disso, o cadastro passou a ser lido dentro do próprio exercício, para que ele não dependa de objetos criados em outros trechos do documento.
