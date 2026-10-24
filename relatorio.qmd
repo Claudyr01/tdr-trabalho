@@ -18,18 +18,15 @@ library(dplyr)
 library(ggplot2)
 library(knitr)
 
-# Carregamento dos alvos calculados no pipeline (sem ler ficheiros brutos)
-tar_load(c(tabela_arrumada, conferencia, resumo_unidade, resumo_categoria, resumo_categoria_ano, modelo_log))
+tar_load(c(tabela_arrumada, conferencia, resumo_unidade, resumo_categoria, resumo_categoria_ano))
 
-# Função de formatação brasileira para o texto em linha
 fmt <- function(x, dec = 2) {
-  format(round(x, dec), big.mark = ".", decimal.mark = ",", nsmall = dec)
+  if (is.null(x) || length(x) == 0 || is.na(x)) return("N/A")
+  format(round(as.numeric(x), dec), big.mark = ".", decimal.mark = ",", nsmall = dec)
 }
 
-# Cálculos dinâmicos para o texto em linha
 total_unidades_cad <- n_distinct(tabela_arrumada$id_chave)
 
-# Identificação da unidade do cadastro sem medição
 unidade_sem_med <- tabela_arrumada |> 
   group_by(id_chave) |> 
   summarise(total_obs = sum(!is.na(medida_relativa)), .groups = "drop") |> 
@@ -38,35 +35,154 @@ unidade_sem_med <- tabela_arrumada |>
 
 unidades_com_medizao <- total_unidades_cad - length(unidade_sem_med)
 
-# Dados da sazonalidade
 sazonalidade <- tabela_arrumada |> 
   group_by(mes) |> 
   summarise(media_mensal = mean(medida_relativa, na.rm = TRUE), .groups = "drop")
 
-mes_maior <- sazonalidade |> filter(media_mensal == max(media_mensal)) |> pull(mes) |> as.character()
-val_maior <- sazonalidade |> filter(media_mensal == max(media_mensal)) |> pull(media_mensal)
+mes_maior <- sazonalidade |> filter(media_mensal == max(media_mensal, na.rm = TRUE)) |> pull(mes) |> as.character()
+val_maior <- sazonalidade |> filter(media_mensal == max(media_mensal, na.rm = TRUE)) |> pull(media_mensal)
 
-mes_menor <- sazonalidade |> filter(media_mensal == min(media_mensal)) |> pull(mes) |> as.character()
-val_menor <- sazonalidade |> filter(media_mensal == min(media_mensal)) |> pull(media_mensal)
+mes_menor <- sazonalidade |> filter(media_mensal == min(media_mensal, na.rm = TRUE)) |> pull(mes) |> as.character()
+val_menor <- sazonalidade |> filter(media_mensal == min(media_mensal, na.rm = TRUE)) |> pull(media_mensal)
 
-# Variação entre 2023 e 2025
 media_2023 <- tabela_arrumada |> filter(ano == 2023) |> summarise(m = mean(medida_relativa, na.rm = TRUE)) |> pull(m)
 media_2025 <- tabela_arrumada |> filter(ano == 2025) |> summarise(m = mean(medida_relativa, na.rm = TRUE)) |> pull(m)
 var_pct_23_25 <- ((media_2025 - media_2023) / media_2023) * 100
 
-# Diferenças por Categoria
 cat_resumo <- tabela_arrumada |> 
   group_by(categoria) |> 
   summarise(m = mean(medida_relativa, na.rm = TRUE), .groups = "drop")
 
-cat_maior <- cat_resumo |> filter(m == max(m)) |> pull(categoria) |> as.character()
-val_cat_maior <- cat_resumo |> filter(m == max(m)) |> pull(m)
+cat_maior <- cat_resumo |> filter(m == max(m, na.rm = TRUE)) |> pull(categoria) |> as.character()
+val_cat_maior <- cat_resumo |> filter(m == max(m, na.rm = TRUE)) |> pull(m)
 
-cat_menor <- cat_resumo |> filter(m == min(m)) |> pull(categoria) |> as.character()
-val_cat_menor <- cat_resumo |> filter(m == min(m)) |> pull(m)
+cat_menor <- cat_resumo |> filter(m == min(m, na.rm = TRUE)) |> pull(categoria) |> as.character()
+val_cat_menor <- cat_resumo |> filter(m == min(m, na.rm = TRUE)) |> pull(m)
+```
 
-# Modelo Log-Linear (Efeito do ano)
-coef_ano <- coef(modelo_log)["ano"]
-efeito_ano_pct <- (exp(coef_ano) - 1) * 100
-ci_ano <- confint(modelo_log)["ano", ]
-ci_ano_pct <- (exp(ci_ano) - 1) * 100
+## 1. Os dados
+
+Os dados analisados foram simulados para o login individual do GitHub do aluno, contendo um cadastro de unidades e três arquivos anuais de acompanhamento do faturamento/medição referentes aos anos de 2023, 2024 e 2025.
+
+O cadastro possui um total de `r total_unidades_cad` unidades cadastradas. Desse total, `r unidades_com_medizao` unidades apresentaram medições registradas nos arquivos anuais, enquanto a unidade identificada pelo código **`r ifelse(length(unidade_sem_med) > 0, unidade_sem_med, "Nenhuma")`** não possui qualquer registro de medição no período estudado.
+
+A @tbl-conferencia apresenta o volume de registros e a verificação das informações com o arquivo explicativo.
+
+```{r}
+#| label: tbl-conferencia
+#| tbl-cap: "Tabela de conferência do volume de dados e valores ausentes por ano."
+
+conferencia |> 
+  knitr::kable(
+    col.names = c("Ano", "Linhas", "Soma da Medida Relativa", "Meses Ausentes"),
+    digits = 2,
+    format.args = list(big.mark = ".", decimal.mark = ",")
+  )
+```
+
+Como observado na @tbl-conferencia, constataram-se registros ausentes ao longo dos três anos. A decisão metodológica adotada para o tratamento desses meses sem registro foi **desconsiderá-los durante o cálculo das estatísticas descritivas** (aplicando `na.rm = TRUE`). Essa abordagem preserva o cálculo correto das médias mensais e impede que a falta pontual de dados distorça os totais observados.
+
+## 2. Sazonalidade
+
+A avaliação da sazonalidade da medida relativa é demonstrada pelo comportamento mensal da média em cada ano analisado.
+
+```{r}
+#| label: fig-sazonalidade
+#| fig-cap: "Trajetória mensal da média da medida relativa por ano."
+
+sazonalidade_df <- tabela_arrumada |> 
+  group_by(ano, mes) |> 
+  summarise(media_mensal = mean(medida_relativa, na.rm = TRUE), .groups = "drop")
+
+ggplot(sazonalidade_df, aes(x = mes, y = media_mensal, color = factor(ano), group = ano)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  labs(x = "Mês do Ano", y = "Média da Medida Relativa", color = "Ano") +
+  theme_minimal()
+```
+
+A @fig-sazonalidade ilustra a variação ao longo dos meses. Na média geral do período, o mês de **`r mes_maior`** apresentou a maior média da medida relativa (`r fmt(val_maior)`), enquanto o mês de **`r mes_menor`** registrou a menor média mensal (`r fmt(val_menor)`).
+
+## 3. Variação entre 2023 e 2025
+
+Para medir a evolução entre o primeiro e o último ano da série temporal, comparam-se os indicadores anuais.
+
+```{r}
+#| label: tbl-variacao
+#| tbl-cap: "Média e mediana anuais da medida relativa."
+
+resumo_anual <- tabela_arrumada |> 
+  group_by(ano) |> 
+  summarise(
+    media_relativa = mean(medida_relativa, na.rm = TRUE),
+    mediana_relativa = median(medida_relativa, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+resumo_anual |> 
+  knitr::kable(
+    col.names = c("Ano", "Média Relativa", "Mediana Relativa"),
+    digits = 2,
+    format.args = list(big.mark = ".", decimal.mark = ",")
+  )
+```
+
+Como visto na @tbl-variacao, a média da medida relativa passou de `r fmt(media_2023)` em 2023 para `r fmt(media_2025)` em 2025, o que representa uma variação percentual de **`r fmt(var_pct_23_25)`%** no período.
+
+A comparação entre os anos é realizada utilizando a **média** (e não o total acumulado) porque a presença de meses com registros ausentes varia entre os anos (como detalhado na @tbl-conferencia). A soma acumulada sofreria uma penalização nos anos com maior número de dados ausentes, ao passo que a média reflete com precisão o nível central da medição.
+
+## 4. Diferenças entre categorias
+
+A distribuição da medida relativa entre as diferentes categorias cadastradas é apresentada a seguir.
+
+```{r}
+#| label: fig-categorias
+#| fig-cap: "Distribuição da medida relativa entre as categorias cadastradas."
+
+ggplot(tabela_arrumada, aes(x = categoria, y = medida_relativa, fill = categoria)) +
+  geom_boxplot(alpha = 0.7, show.legend = FALSE) +
+  labs(x = "Categoria", y = "Medida Relativa") +
+  theme_minimal()
+```
+
+```{r}
+#| label: tbl-categorias
+#| tbl-cap: "Resumo das médias e medianas da medida relativa por categoria."
+
+resumo_categoria |> 
+  knitr::kable(
+    col.names = c("Categoria", "Média Relativa", "Mediana Relativa"),
+    digits = 2,
+    format.args = list(big.mark = ".", decimal.mark = ",")
+  )
+```
+
+Analisando a @fig-categorias e a @tbl-categorias, observa-se que a categoria com a maior média de medida relativa é **`r cat_maior`** (`r fmt(val_cat_maior)`), ao passo que a categoria com a menor média é **`r cat_menor`** (`r fmt(val_cat_menor)`).
+
+## 5. As tabelas da Lista 03
+
+Para manter a consistência com as entregas da disciplina, as tabelas consolidadas por unidade e o cruzamento de categoria por ano são apresentados abaixo.
+
+```{r}
+#| label: tbl-resumo-unidade
+#| tbl-cap: "Resumo descritivo da medida relativa por unidade cadastrada."
+
+resumo_unidade |> 
+  knitr::kable(
+    col.names = c("Código da Unidade", "Média Relativa", "Total Acumulado"),
+    digits = 2,
+    format.args = list(big.mark = ".", decimal.mark = ",")
+  )
+```
+
+```{r}
+#| label: tbl-resumo-cat-ano
+#| tbl-cap: "Média da medida relativa por categoria e ano."
+
+resumo_categoria_ano |> 
+  tidyr::pivot_wider(names_from = ano, values_from = media_relativa) |> 
+  knitr::kable(
+    digits = 2,
+    format.args = list(big.mark = ".", decimal.mark = ",")
+  )
+```
