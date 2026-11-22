@@ -77,7 +77,7 @@ processar_tabela_arrumada <- function(lista_dados) {
       values_to = "faturamento"
     ) |>
     dplyr::mutate(
-      mes = factor(mes, levels = meses_ref, ordered = TRUE)
+      mes = factor(.data$mes, levels = meses_ref, ordered = TRUE)
     )
   
   tabela_arrumada <- tabela_longa |>
@@ -87,7 +87,7 @@ processar_tabela_arrumada <- function(lista_dados) {
       relationship = "many-to-one"
     ) |>
     dplyr::mutate(
-      medida_relativa = faturamento / area_m2
+      medida_relativa = .data$faturamento / .data$area_m2
     )
   
   tabela_arrumada
@@ -96,11 +96,11 @@ processar_tabela_arrumada <- function(lista_dados) {
 # 3. FUNÇÃO DE CONFERÊNCIA (LEIA-ME.txt)
 conferir_dados <- function(tabela_arrumada) {
   tabela_arrumada |>
-    dplyr::group_by(ano) |>
+    dplyr::group_by(.data$ano) |>
     dplyr::summarise(
       n_linhas = dplyr::n(),
-      meses_ausentes = sum(is.na(faturamento)),
-      soma_valores = sum(faturamento, na.rm = TRUE),
+      meses_ausentes = sum(is.na(.data$faturamento)),
+      soma_valores = sum(.data$faturamento, na.rm = TRUE),
       .groups = "drop"
     )
 }
@@ -108,30 +108,30 @@ conferir_dados <- function(tabela_arrumada) {
 # 4. FUNÇÕES DE RESUMO ESTATÍSTICO
 gerar_resumo_unidade <- function(tabela) {
   tabela |>
-    dplyr::group_by(codigo, nome, formato) |>
+    dplyr::group_by(.data$codigo, .data$nome, .data$formato) |>
     dplyr::summarise(
-      meses_registrados = sum(!is.na(faturamento)),
-      faturamento_total = sum(faturamento, na.rm = TRUE),
-      media_relativa = mean(medida_relativa, na.rm = TRUE),
+      meses_registrados = sum(!is.na(.data$faturamento)),
+      faturamento_total = sum(.data$faturamento, na.rm = TRUE),
+      media_relativa = mean(.data$medida_relativa, na.rm = TRUE),
       .groups = "drop"
     )
 }
 
 gerar_resumo_categoria <- function(tabela) {
   tabela |>
-    dplyr::group_by(formato) |>
+    dplyr::group_by(.data$formato) |>
     dplyr::summarise(
-      media_relativa = mean(medida_relativa, na.rm = TRUE),
-      mediana_relativa = median(medida_relativa, na.rm = TRUE),
+      media_relativa = mean(.data$medida_relativa, na.rm = TRUE),
+      mediana_relativa = stats::median(.data$medida_relativa, na.rm = TRUE),
       .groups = "drop"
     )
 }
 
 gerar_resumo_categoria_ano <- function(tabela) {
   tabela |>
-    dplyr::group_by(formato, ano) |>
+    dplyr::group_by(.data$formato, .data$ano) |>
     dplyr::summarise(
-      media_relativa = mean(medida_relativa, na.rm = TRUE),
+      media_relativa = mean(.data$medida_relativa, na.rm = TRUE),
       .groups = "drop"
     )
 }
@@ -141,74 +141,74 @@ gerar_resumos_relatorio <- function(tabela_arrumada) {
   total_unidades_cad <- dplyr::n_distinct(tabela_arrumada$codigo)
   
   unidade_sem_med <- tabela_arrumada |>
-    dplyr::group_by(codigo) |>
+    dplyr::group_by(.data$codigo) |>
     dplyr::summarise(
-      total_obs = sum(!is.na(faturamento)),
+      total_obs = sum(!is.na(.data$faturamento)),
       .groups = "drop"
     ) |>
-    dplyr::filter(total_obs == 0) |>
-    dplyr::pull(codigo)
+    dplyr::filter(.data$total_obs == 0) |>
+    dplyr::pull(.data$codigo)
   
   unidades_com_medicao <- total_unidades_cad - length(unidade_sem_med)
   
   sazonalidade_geral <- tabela_arrumada |>
-    dplyr::group_by(mes) |>
+    dplyr::group_by(.data$mes) |>
     dplyr::summarise(
-      media_mensal = mean(medida_relativa, na.rm = TRUE),
+      media_mensal = mean(.data$medida_relativa, na.rm = TRUE),
       .groups = "drop"
     )
   
   sazonalidade_anual <- tabela_arrumada |>
-    dplyr::group_by(ano, mes) |>
+    dplyr::group_by(.data$ano, .data$mes) |>
     dplyr::summarise(
-      media_mensal = mean(medida_relativa, na.rm = TRUE),
+      media_mensal = mean(.data$medida_relativa, na.rm = TRUE),
       .groups = "drop"
     )
   
   resumo_anual <- tabela_arrumada |>
-    dplyr::group_by(ano) |>
+    dplyr::group_by(.data$ano) |>
     dplyr::summarise(
-      media_relativa = mean(medida_relativa, na.rm = TRUE),
-      mediana_relativa = median(medida_relativa, na.rm = TRUE),
+      media_relativa = mean(.data$medida_relativa, na.rm = TRUE),
+      mediana_relativa = stats::median(.data$medida_relativa, na.rm = TRUE),
       .groups = "drop"
     )
   
   mes_maior <- sazonalidade_geral |>
-    dplyr::filter(media_mensal == max(media_mensal, na.rm = TRUE)) |>
-    dplyr::pull(mes) |>
+    dplyr::filter(.data$media_mensal == max(.data$media_mensal, na.rm = TRUE)) |>
+    dplyr::pull(.data$mes) |>
     as.character()
   val_maior <- max(sazonalidade_geral$media_mensal, na.rm = TRUE)
   
   mes_menor <- sazonalidade_geral |>
-    dplyr::filter(media_mensal == min(media_mensal, na.rm = TRUE)) |>
-    dplyr::pull(mes) |>
+    dplyr::filter(.data$media_mensal == min(.data$media_mensal, na.rm = TRUE)) |>
+    dplyr::pull(.data$mes) |>
     as.character()
   val_menor <- min(sazonalidade_geral$media_mensal, na.rm = TRUE)
   
   media_2023 <- resumo_anual |>
-    dplyr::filter(ano == 2023L) |>
-    dplyr::pull(media_relativa)
+    dplyr::filter(.data$ano == 2023L) |>
+    dplyr::pull(.data$media_relativa)
   media_2025 <- resumo_anual |>
-    dplyr::filter(ano == 2025L) |>
-    dplyr::pull(media_relativa)
+    dplyr::filter(.data$ano == 2025L) |>
+    dplyr::pull(.data$media_relativa)
   var_pct_23_25 <- ((media_2025 - media_2023) / media_2023) * 100
   
   cat_resumo <- tabela_arrumada |>
-    dplyr::group_by(formato) |>
+    dplyr::group_by(.data$formato) |>
     dplyr::summarise(
-      media_relativa = mean(medida_relativa, na.rm = TRUE),
+      media_relativa = mean(.data$medida_relativa, na.rm = TRUE),
       .groups = "drop"
     )
   
   cat_maior <- cat_resumo |>
-    dplyr::filter(media_relativa == max(media_relativa, na.rm = TRUE)) |>
-    dplyr::pull(formato) |>
+    dplyr::filter(.data$media_relativa == max(.data$media_relativa, na.rm = TRUE)) |>
+    dplyr::pull(.data$formato) |>
     as.character()
   val_cat_maior <- max(cat_resumo$media_relativa, na.rm = TRUE)
   
   cat_menor <- cat_resumo |>
-    dplyr::filter(media_relativa == min(media_relativa, na.rm = TRUE)) |>
-    dplyr::pull(formato) |>
+    dplyr::filter(.data$media_relativa == min(.data$media_relativa, na.rm = TRUE)) |>
+    dplyr::pull(.data$formato) |>
     as.character()
   val_cat_menor <- min(cat_resumo$media_relativa, na.rm = TRUE)
   
