@@ -57,3 +57,38 @@ ler_dados_projeto <- function(arq_cad, arq_2023, arq_2024, arq_2025) {
   list(cadastro = cadastro, d2023 = d2023, d2024 = d2024, d2025 = d2025)
 }
 
+# 2. ARRUMAÇÃO E JUNÇÃO COM O CADASTRO
+processar_tabela_arrumada <- function(lista_dados) {
+  meses_ref <- c(
+    "jan", "fev", "mar", "abr", "mai", "jun",
+    "jul", "ago", "set", "out", "nov", "dez"
+  )
+  
+  dados_empilhados <- dplyr::bind_rows(
+    lista_dados$d2023,
+    lista_dados$d2024,
+    lista_dados$d2025
+  )
+  
+  tabela_longa <- dados_empilhados |>
+    tidyr::pivot_longer(
+      cols = dplyr::all_of(meses_ref),
+      names_to = "mes",
+      values_to = "faturamento"
+    ) |>
+    dplyr::mutate(
+      mes = factor(mes, levels = meses_ref, ordered = TRUE)
+    )
+  
+  tabela_arrumada <- tabela_longa |>
+    dplyr::left_join(
+      lista_dados$cadastro,
+      by = "codigo",
+      relationship = "many-to-one"
+    ) |>
+    dplyr::mutate(
+      medida_relativa = faturamento / area_m2
+    )
+  
+  tabela_arrumada
+}
