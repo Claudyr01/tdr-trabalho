@@ -92,3 +92,16 @@ processar_tabela_arrumada <- function(lista_dados) {
   
   tabela_arrumada
 }
+
+# 3. FUNÇÃO DE CONFERÊNCIA (LEIA-ME.txt)
+conferir_dados <- function(tabela_arrumada) {
+  tabela_arrumada |>
+    dplyr::group_by(ano) |>
+    dplyr::summarise(
+      n_linhas = dplyr::n(),
+      meses_ausentes = sum(is.na(faturamento)),
+      soma_valores = sum(faturamento, na.rm = TRUE),
+      .groups = "drop"
+    )
+}
+
