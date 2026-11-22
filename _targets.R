@@ -22,5 +22,8 @@ list(
   
   tar_target(modelo_log, ajustar_modelo_log(tabela_arrumada)),
   
+  tar_target(modelo_log, ajustar_modelo_log(tabela_arrumada)),
+  tar_target(resumos_relatorio, gerar_resumos_relatorio(tabela_arrumada)),
+  
   tar_quarto(relatorio, "relatorio.qmd")
 )

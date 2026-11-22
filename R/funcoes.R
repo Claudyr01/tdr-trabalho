@@ -135,3 +135,99 @@ gerar_resumo_categoria_ano <- function(tabela) {
       .groups = "drop"
     )
 }
+
+# 5. RESUMOS AUXILIARES PARA O RELATÓRIO
+gerar_resumos_relatorio <- function(tabela_arrumada) {
+  total_unidades_cad <- dplyr::n_distinct(tabela_arrumada$codigo)
+  
+  unidade_sem_med <- tabela_arrumada |>
+    dplyr::group_by(codigo) |>
+    dplyr::summarise(
+      total_obs = sum(!is.na(faturamento)),
+      .groups = "drop"
+    ) |>
+    dplyr::filter(total_obs == 0) |>
+    dplyr::pull(codigo)
+  
+  unidades_com_medicao <- total_unidades_cad - length(unidade_sem_med)
+  
+  sazonalidade_geral <- tabela_arrumada |>
+    dplyr::group_by(mes) |>
+    dplyr::summarise(
+      media_mensal = mean(medida_relativa, na.rm = TRUE),
+      .groups = "drop"
+    )
+  
+  sazonalidade_anual <- tabela_arrumada |>
+    dplyr::group_by(ano, mes) |>
+    dplyr::summarise(
+      media_mensal = mean(medida_relativa, na.rm = TRUE),
+      .groups = "drop"
+    )
+  
+  resumo_anual <- tabela_arrumada |>
+    dplyr::group_by(ano) |>
+    dplyr::summarise(
+      media_relativa = mean(medida_relativa, na.rm = TRUE),
+      mediana_relativa = median(medida_relativa, na.rm = TRUE),
+      .groups = "drop"
+    )
+  
+  mes_maior <- sazonalidade_geral |>
+    dplyr::filter(media_mensal == max(media_mensal, na.rm = TRUE)) |>
+    dplyr::pull(mes) |>
+    as.character()
+  val_maior <- max(sazonalidade_geral$media_mensal, na.rm = TRUE)
+  
+  mes_menor <- sazonalidade_geral |>
+    dplyr::filter(media_mensal == min(media_mensal, na.rm = TRUE)) |>
+    dplyr::pull(mes) |>
+    as.character()
+  val_menor <- min(sazonalidade_geral$media_mensal, na.rm = TRUE)
+  
+  media_2023 <- resumo_anual |>
+    dplyr::filter(ano == 2023L) |>
+    dplyr::pull(media_relativa)
+  media_2025 <- resumo_anual |>
+    dplyr::filter(ano == 2025L) |>
+    dplyr::pull(media_relativa)
+  var_pct_23_25 <- ((media_2025 - media_2023) / media_2023) * 100
+  
+  cat_resumo <- tabela_arrumada |>
+    dplyr::group_by(formato) |>
+    dplyr::summarise(
+      media_relativa = mean(medida_relativa, na.rm = TRUE),
+      .groups = "drop"
+    )
+  
+  cat_maior <- cat_resumo |>
+    dplyr::filter(media_relativa == max(media_relativa, na.rm = TRUE)) |>
+    dplyr::pull(formato) |>
+    as.character()
+  val_cat_maior <- max(cat_resumo$media_relativa, na.rm = TRUE)
+  
+  cat_menor <- cat_resumo |>
+    dplyr::filter(media_relativa == min(media_relativa, na.rm = TRUE)) |>
+    dplyr::pull(formato) |>
+    as.character()
+  val_cat_menor <- min(cat_resumo$media_relativa, na.rm = TRUE)
+  
+  list(
+    total_unidades_cad = total_unidades_cad,
+    unidade_sem_med = unidade_sem_med,
+    unidades_com_medicao = unidades_com_medicao,
+    sazonalidade_anual = sazonalidade_anual,
+    resumo_anual = resumo_anual,
+    mes_maior = mes_maior,
+    val_maior = val_maior,
+    mes_menor = mes_menor,
+    val_menor = val_menor,
+    media_2023 = media_2023,
+    media_2025 = media_2025,
+    var_pct_23_25 = var_pct_23_25,
+    cat_maior = cat_maior,
+    val_cat_maior = val_cat_maior,
+    cat_menor = cat_menor,
+    val_cat_menor = val_cat_menor
+  )
+}
