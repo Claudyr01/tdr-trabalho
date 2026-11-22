@@ -105,3 +105,33 @@ conferir_dados <- function(tabela_arrumada) {
     )
 }
 
+# 4. FUNÇÕES DE RESUMO ESTATÍSTICO
+gerar_resumo_unidade <- function(tabela) {
+  tabela |>
+    dplyr::group_by(codigo, nome, formato) |>
+    dplyr::summarise(
+      meses_registrados = sum(!is.na(faturamento)),
+      faturamento_total = sum(faturamento, na.rm = TRUE),
+      media_relativa = mean(medida_relativa, na.rm = TRUE),
+      .groups = "drop"
+    )
+}
+
+gerar_resumo_categoria <- function(tabela) {
+  tabela |>
+    dplyr::group_by(formato) |>
+    dplyr::summarise(
+      media_relativa = mean(medida_relativa, na.rm = TRUE),
+      mediana_relativa = median(medida_relativa, na.rm = TRUE),
+      .groups = "drop"
+    )
+}
+
+gerar_resumo_categoria_ano <- function(tabela) {
+  tabela |>
+    dplyr::group_by(formato, ano) |>
+    dplyr::summarise(
+      media_relativa = mean(medida_relativa, na.rm = TRUE),
+      .groups = "drop"
+    )
+}
