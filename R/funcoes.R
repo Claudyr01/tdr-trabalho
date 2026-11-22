@@ -154,18 +154,6 @@ gerar_resumos_relatorio <- function(tabela_arrumada, dados_brutos) {
   unidade_sem_med <- dplyr::anti_join(dados_brutos$cadastro, tabela_arrumada, by = "codigo") |>
     dplyr::pull(.data$codigo)
   unidades_com_medicao <- total_unidades_cad - length(unidade_sem_med)
-  total_unidades_cad <- dplyr::n_distinct(tabela_arrumada$codigo)
-
-  unidade_sem_med <- tabela_arrumada |>
-    dplyr::group_by(.data$codigo) |>
-    dplyr::summarise(
-      total_obs = sum(!is.na(.data$faturamento)),
-      .groups = "drop"
-    ) |>
-    dplyr::filter(.data$total_obs == 0) |>
-    dplyr::pull(.data$codigo)
-
-  unidades_com_medicao <- total_unidades_cad - length(unidade_sem_med)
 
   sazonalidade_geral <- tabela_arrumada |>
     dplyr::group_by(.data$mes) |>
