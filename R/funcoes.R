@@ -1,111 +1,59 @@
-# R/funcoes.R
-
-# 1. FUNÇÃO DE LEITURA DOS DADOS BRUTOS
+# 1. LEITURA DOS DADOS BRUTOS
 ler_dados_projeto <- function(arq_cad, arq_2023, arq_2024, arq_2025) {
-  cadastro <- readr::read_csv2(
-    arq_cad,
-    locale = readr::locale(encoding = "UTF-8"),
-    na = c("", "NA", "-", " "),
-    show_col_types = FALSE
+  tipos_cadastro <- readr::cols(
+    codigo = readr::col_character(),
+    nome = readr::col_character(),
+    formato = readr::col_character(),
+    area_m2 = readr::col_double()
   )
   
-  d2023 <- readr::read_csv2(arq_2023, locale = readr::locale(encoding = "UTF-8"), na = c("", "NA", "-", " "), show_col_types = FALSE) |> dplyr::mutate(ano = 2023)
-  d2024 <- readr::read_csv2(arq_2024, locale = readr::locale(encoding = "UTF-8"), na = c("", "NA", "-", " "), show_col_types = FALSE) |> dplyr::mutate(ano = 2024)
-  d2025 <- readr::read_csv2(arq_2025, locale = readr::locale(encoding = "UTF-8"), na = c("", "NA", "-", " "), show_col_types = FALSE) |> dplyr::mutate(ano = 2025)
+  tipos_faturamento <- readr::cols(
+    codigo = readr::col_character(),
+    jan = readr::col_double(),
+    fev = readr::col_double(),
+    mar = readr::col_double(),
+    abr = readr::col_double(),
+    mai = readr::col_double(),
+    jun = readr::col_double(),
+    jul = readr::col_double(),
+    ago = readr::col_double(),
+    set = readr::col_double(),
+    out = readr::col_double(),
+    nov = readr::col_double(),
+    dez = readr::col_double()
+  )
+  
+  cadastro <- readr::read_csv2(
+    arq_cad,
+    col_types = tipos_cadastro,
+    locale = readr::locale(encoding = "latin1"),
+    na = c("", "NA", "-", " ")
+  )
+  
+  d2023 <- readr::read_csv2(
+    arq_2023,
+    col_types = tipos_faturamento,
+    locale = readr::locale(encoding = "UTF-8"),
+    na = c("", "NA", "-", " ")
+  ) |>
+    dplyr::mutate(ano = 2023L)
+  
+  d2024 <- readr::read_csv2(
+    arq_2024,
+    col_types = tipos_faturamento,
+    locale = readr::locale(encoding = "UTF-8"),
+    na = c("", "NA", "-", " ")
+  ) |>
+    dplyr::mutate(ano = 2024L)
+  
+  d2025 <- readr::read_csv2(
+    arq_2025,
+    col_types = tipos_faturamento,
+    locale = readr::locale(encoding = "UTF-8"),
+    na = c("", "NA", "-", " ")
+  ) |>
+    dplyr::mutate(ano = 2025L)
   
   list(cadastro = cadastro, d2023 = d2023, d2024 = d2024, d2025 = d2025)
 }
 
-# 2. FUNÇÃO DE ARRUMAÇÃO E JUNÇÃO DINÂMICA
-processar_tabela_arrumada <- function(lista_dados) {
-  dados_empilhados <- dplyr::bind_rows(lista_dados$d2023, lista_dados$d2024, lista_dados$d2025)
-  
-  col_id <- intersect(c("codigo", "id_unidade", "id"), names(lista_dados$cadastro))[1]
-  
-  cadastro_limpo <- lista_dados$cadastro |>
-    dplyr::mutate(dplyr::across(dplyr::all_of(col_id), as.character))
-  
-  dados_empilhados_limpos <- dados_empilhados |>
-    dplyr::mutate(dplyr::across(dplyr::all_of(col_id), as.character))
-  
-  col_porte <- cadastro_limpo |>
-    dplyr::select(where(is.numeric)) |>
-    names() |>
-    _[1]
-  
-  col_categoria <- setdiff(names(cadastro_limpo), c(col_id, "nome", col_porte))[1]
-  
-  meses_ref <- c("jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez")
-  meses_presentes <- intersect(meses_ref, names(dados_empilhados_limpos))
-  
-  tabela_longa <- dados_empilhados_limpos |>
-    tidyr::pivot_longer(
-      cols = dplyr::all_of(meses_presentes),
-      names_to = "mes",
-      values_to = "medicao"
-    ) |>
-    dplyr::mutate(
-      medicao = as.numeric(medicao),
-      mes = factor(mes, levels = meses_ref, ordered = TRUE)
-    )
-  
-  tabela_arrumada <- tabela_longa |>
-    dplyr::left_join(cadastro_limpo, by = col_id, relationship = "many-to-one") |>
-    dplyr::mutate(
-      medida_relativa = medicao / .data[[col_porte]],
-      categoria = .data[[col_categoria]],
-      id_chave = .data[[col_id]]
-    )
-  
-  return(tabela_arrumada)
-}
-
-# 3. FUNÇÃO DE CONFERÊNCIA (LEIA-ME.txt)
-conferir_dados <- function(tabela_arrumada) {
-  tabela_arrumada |>
-    dplyr::group_by(ano) |>
-    dplyr::summarise(
-      n_linhas = dplyr::n(),
-      soma_medida = sum(medida_relativa, na.rm = TRUE),
-      meses_ausentes = sum(is.na(medida_relativa)),
-      .groups = "drop"
-    )
-}
-
-# 4. FUNÇÕES DE RESUMO ESTATÍSTICO
-gerar_resumo_unidade <- function(tabela) {
-  tabela |>
-    dplyr::group_by(id_chave) |>
-    dplyr::summarise(
-      media_relativa = mean(medida_relativa, na.rm = TRUE),
-      total_acumulado = sum(medida_relativa, na.rm = TRUE),
-      .groups = "drop"
-    )
-}
-
-gerar_resumo_categoria <- function(tabela) {
-  tabela |>
-    dplyr::group_by(categoria) |>
-    dplyr::summarise(
-      media_relativa = mean(medida_relativa, na.rm = TRUE),
-      mediana_relativa = median(medida_relativa, na.rm = TRUE),
-      .groups = "drop"
-    )
-}
-
-gerar_resumo_categoria_ano <- function(tabela) {
-  tabela |>
-    dplyr::group_by(categoria, ano) |>
-    dplyr::summarise(
-      media_relativa = mean(medida_relativa, na.rm = TRUE),
-      .groups = "drop"
-    )
-}
-
-# 5. MODELO ESTATÍSTICO OPCIONAL
-ajustar_modelo_log <- function(tabela_arrumada) {
-  tabela_filtrada <- tabela_arrumada |>
-    dplyr::filter(!is.na(medida_relativa), medida_relativa > 0)
-  
-  stats::lm(log(medida_relativa) ~ ano + mes + categoria, data = tabela_filtrada)
-}
