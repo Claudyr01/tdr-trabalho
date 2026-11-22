@@ -17,7 +17,6 @@ library(ggplot2)
 library(knitr)
 tar_load(
   c(
-    tabela_arrumada,
     conferencia,
     resumo_unidade,
     resumo_categoria,
