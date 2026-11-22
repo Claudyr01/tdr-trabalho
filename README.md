@@ -1,41 +1,28 @@
-# Trabalho Intermediário — Tecnologia de Dados e Reprodutibilidade (TDR)
+# Trabalho Intermediário — Tecnologia de Dados Reproduzíveis (TDR)
 
-## 1. Descrição do Projeto
-Este repositório contém a análise reprodutível de faturamento e cadastro simulados referentes aos anos de 2023, 2024 e 2025. O pipeline de dados realiza a limpeza, consolidação e geração automática do relatório de análise em formato HTML utilizando o pacote `{targets}` e o ecossistema Quarto.
+**Aluno (Login):** `claudyr01`  
+**Tema:** Faturamento das lojas de uma rede de varejo (em milhares de reais)
 
-## 2. Requisitos Prévios
-Para reproduzir este projeto, é necessário ter instalado no ambiente:
-- **R** (versão $\ge$ 4.2)
-- **Quarto CLI** (versão $\ge$ 1.3)
-- Gerenciador de pacotes **`renv`**
+## Descrição e Decisões Metodológicas
 
-## 3. Como Reproduzir o Projeto
-A reprodução total do ambiente e do pipeline é realizada em apenas dois comandos no R:
+- **Meses sem registro:** Desconsiderados no cálculo das estatísticas (`na.rm = TRUE`).
+- **Lojas sem medição:** A loja `LJ01` (Mercadinho Central) consta apenas no cadastro, sem faturamento registrado.
+- **Modelo opcional:** Não foi incluído nesta entrega.
 
-```R
-# 1. Restaurar o ambiente isolado de pacotes
-renv::restore()
+## Estrutura do Repositório
 
-# 2. Executar o pipeline de dados e renderizar o relatório
-targets::tar_make()
-cat << 'EOF' > README.md
-# Trabalho Intermediário — Tecnologia de Dados e Reprodutibilidade (TDR)
+- `dados/`: Arquivos originais (`LEIA-ME.txt`, `cadastro.csv`, `faturamento_2023.csv`, `faturamento_2024.csv`, `faturamento_2025.csv`).
+- `R/funcoes.R`: Funções modulares de leitura (`latin1` e `col_types`), validação, união, cálculos e gráficos.
+- `_targets.R`: Pipeline reprodutível gerenciado pelo pacote `{targets}`.
+- `relatorio.qmd`: Relatório final em Quarto alimentado exclusivamente pelos alvos do `{targets}`.
+- `renv.lock` e `.lintr`: Controle determinístico de pacotes e regras de estilo do projeto.
 
-## 1. Descrição do Projeto
-Este repositório contém a análise reprodutível de faturamento e cadastro simulados referentes aos anos de 2023, 2024 e 2025. O pipeline de dados realiza a limpeza, consolidação e geração automática do relatório de análise em formato HTML utilizando o pacote `{targets}` e o ecossistema Quarto.
+## Como Reproduzir
 
-## 2. Requisitos Prévios
-Para reproduzir este projeto, é necessário ter instalado no ambiente:
-- **R** (versão $\ge$ 4.2)
-- **Quarto CLI** (versão $\ge$ 1.3)
-- Gerenciador de pacotes **`renv`**
+1. Clone o repositório e abra o R na pasta raiz do projeto.
+2. Execute `renv::restore()` para restaurar os pacotes registrados.
+3. Execute `targets::tar_make()` para rodar o pipeline completo e gerar `relatorio.html`.
 
-## 3. Como Reproduzir o Projeto
-A reprodução total do ambiente e do pipeline é realizada em apenas dois comandos no R:
+## Declaração de Uso de LLM
 
-```R
-# 1. Restaurar o ambiente isolado de pacotes
-renv::restore()
-
-# 2. Executar o pipeline de dados e renderizar o relatório
-targets::tar_make()
+Foi utilizada ferramenta de modelo de linguagem (Gemini) como apoio para diagnóstico de erros, organização modular no `{targets}`, revisão de sintaxe Quarto e adequação às regras do `{lintr}`. Todo o código, as decisões analíticas e os resultados foram executados e validados pelo autor.
