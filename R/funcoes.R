@@ -145,7 +145,15 @@ ajustar_modelo_log <- function(tabela_arrumada) {
 }
 
 # 6. RESUMOS AUXILIARES PARA O RELATÓRIO
-gerar_resumos_relatorio <- function(tabela_arrumada) {
+gerar_resumos_relatorio <- function(tabela_arrumada, dados_brutos) {
+  total_unidades_cad <- nrow(dados_brutos$cadastro)
+  unidade_sem_med <- dplyr::anti_join(dados_brutos$cadastro, tabela_arrumada, by = "codigo") |>
+    dplyr::pull(.data$codigo)
+  unidades_com_medicao <- total_unidades_cad - length(unidade_sem_med)
+  total_unidades_cad <- nrow(dados_brutos$cadastro)
+  unidade_sem_med <- dplyr::anti_join(dados_brutos$cadastro, tabela_arrumada, by = "codigo") |>
+    dplyr::pull(.data$codigo)
+  unidades_com_medicao <- total_unidades_cad - length(unidade_sem_med)
   total_unidades_cad <- dplyr::n_distinct(tabela_arrumada$codigo)
 
   unidade_sem_med <- tabela_arrumada |>
