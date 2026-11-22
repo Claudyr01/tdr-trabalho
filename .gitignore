@@ -6,3 +6,4 @@ _targets/
 relatorio.html
 relatorio_files/
 renv/library/
+*:Zone.Identifier
